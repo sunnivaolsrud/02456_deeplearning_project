@@ -6,7 +6,7 @@ from datasets import load_from_disk
 from evaluate import load
 #%% Load tokenized dataset and model
 tokenized_data = load_from_disk("data/tokenized_data")
-model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased")
+model = AutoModelForSequenceClassification.from_pretrained("bert-base-cased", num_labels=2)
 
 #%% Define arguments
 metric = load("accuracy")
@@ -18,7 +18,7 @@ def compute_metrics(eval_pred):
 training_args = TrainingArguments(
             output_dir="test_trainer", 
             evaluation_strategy="epoch",
-            num_train_epochs=3)
+            num_train_epochs=10)
 
 trainer = Trainer(
     model,
