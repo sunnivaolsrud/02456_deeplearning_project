@@ -31,3 +31,5 @@ trainer = Trainer(
 #%% Train and save model
 trainer.train()
 trainer.save_model('bert_models/trained_bert_3')
+
+#%%
