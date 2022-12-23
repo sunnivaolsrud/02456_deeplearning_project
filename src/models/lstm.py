@@ -7,18 +7,19 @@ import seaborn as sns
 from torchtext import data, datasets
 from torchtext.data import Field, LabelField, BucketIterator, TabularDataset
 from torchtext.vocab import Vocab
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
+from sklearn.metrics import accuracy_score, roc_auc_score, roc_curve
 from scipy.stats import spearmanr
 from nltk import word_tokenize
 import os
 
 # %%
+source_folder = "../data/twitter_data"
+seed = 42
+num_epochs = 50
+
+# %%
 import nltk
 nltk.download('punkt')
-
-seed = 42
-source_folder = 'data'
-num_epochs = 10
 
 # %%
 class LSTM_model(torch.nn.Module):
@@ -76,13 +77,13 @@ def train_model(model, train_iter, optimizer):
 
         predictions = model(batch.Tweet).squeeze(1) # removing the extra dimension ([batch_size,1])
 
-        loss_function = torch.nn.CrossEntropyLoss()
+        ##loss_function = torch.nn.functional.binary_cross_entropy_with_logits()
 
-        loss = loss_function(predictions, batch.overall_label)  # batch loss
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(predictions, batch.label)  # batch loss
 
         predicted_classes = torch.round(torch.sigmoid(predictions))
 
-        correct_preds = (predicted_classes == batch.overall_label).float()
+        correct_preds = (predicted_classes == batch.label).float()
 
         accuracy = correct_preds.sum() / len(correct_preds)
 
@@ -115,9 +116,9 @@ def evaluate_model(model, val_test_iter, optimizer):
         for batch in val_test_iter:
             predictions = model(batch.Tweet).squeeze(1)
 
-            loss_function = torch.nn.CrossEntropyLoss()
+            ##loss_function = torch.nn.functional.binary_cross_entropy_with_logits()
 
-            loss = loss_function(predictions, batch.overall_label)
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(predictions, batch.label)
 
             predicted_classes = torch.sigmoid(predictions)
             y_pred.append(predicted_classes)
@@ -125,25 +126,25 @@ def evaluate_model(model, val_test_iter, optimizer):
             pred_classes = torch.round(torch.sigmoid(predictions))
             y_pred_round.append(pred_classes)
 
-            correct_predictions = (pred_classes == batch.overall_label).float()
+            correct_predictions = (pred_classes == batch.label).float()
 
             accuracy = correct_predictions.sum() / len(correct_predictions)
 
             total_loss += loss.item()
             total_acc += accuracy.item()
-            y_true.append(batch.overall_label)
+            y_true.append(batch.label)
 
         return total_loss / len(val_test_iter), total_acc / len(val_test_iter), y_pred, y_true, y_pred_round
 
 if __name__ == '__main__':
-
+    
     # %%
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.backends.cudnn.determinstic = True
 
     # %%
-    #os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')  # use 'cuda' if available else 'cpu
 
     # %%
@@ -155,11 +156,11 @@ if __name__ == '__main__':
     # useful for label string to LabelEncoding. Not useful here but doesn't hurt either
 
     # %%
-    fields = [('Tweet', tweet), ('overall_label', label)]
+    fields = [('Tweet', tweet), ('label', label)]
     # (column name,field object to use on that column) pair for the dictonary
 
     # %%
-    train, valid, test = TabularDataset.splits(path=source_folder, train='tweet_train.csv', validation='tweet_val.csv', test='tweet_test.csv',
+    train, valid, test = TabularDataset.splits(path=source_folder, train='cleaned_tweet_train.csv', validation='cleaned_tweet_val.csv', test='new_tweet_data_clean.csv',
                                                  format='csv', skip_header=True, fields=fields)
 
     # %%
@@ -199,7 +200,7 @@ if __name__ == '__main__':
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig("test.png")
+    plt.savefig("50epochs_cleaned.png")
 
     # %%
     test_loss, test_acc, test_y_pred, test_y_true, test_y_pred_round = evaluate_model(model, test_iter, optimizer)
@@ -209,6 +210,19 @@ if __name__ == '__main__':
     test_spear = spearman(test_y_true_cat,test_y_pred_cat)
     print(f'''Test AUC score: {test_auc:.3f}''')
     print(test_spear)
+    
+    #%% 
+    # Roc curve
+    fpr, tpr, threshold = roc_curve(test_y_true_cat, test_y_pred_cat)
+    
+    plt.subplots(1, figsize=(10,10))
+    plt.title('ROC LSTM')
+    plt.plot(fpr, tpr)
+    plt.plot([0, 1], ls="--")
+    plt.plot([0, 0], [1, 0] , c=".7"), plt.plot([1, 1] , c=".7")
+    plt.ylabel('True Positive Rate')
+    plt.xlabel('False Positive Rate')
+    plt.savefig("50-epochs-roc-cleaned")
 
     # %%
 
