@@ -11,6 +11,8 @@ from sklearn.metrics import accuracy_score, roc_auc_score, roc_curve
 from scipy.stats import spearmanr
 from nltk import word_tokenize
 import os
+import joblib
+import pickle
 
 # %%
 source_folder = "../data/twitter_data"
@@ -24,7 +26,7 @@ nltk.download('punkt')
 # %%
 class LSTM_model(torch.nn.Module):
 
-    def __init__(self, vocab_size, embedding_dim=105, hidden_size=179, output_dim=1, dropout_rate=0.58,
+    def __init__(self, vocab_size, embedding_dim=64, hidden_size=32, output_dim=1, dropout_rate=0.58,
                  **kwargs):
 
         super(LSTM_model, self).__init__()
@@ -189,8 +191,18 @@ if __name__ == '__main__':
         valid_loss, valid_acc, y_pred, y_true, valid_y_pred = evaluate_model(model, valid_iter, optimizer)
         train_loss_list.append(train_loss)
         valid_loss_list.append(valid_loss)
+        # save the best model
+        if valid_loss < min(valid_loss_list):
+            torch.save(model.state_dict(), 'best_model_lstm.pt')
         print(
-            f'''End of Epoch: {epoch + 1}  |  Train Loss: {train_loss:.3f}  |  Validation Loss: {valid_loss:.3f}  |  Train Acc: {train_acc * 100:.2f}%  |  Validation Acc: {valid_acc * 100:.2f}% ''')
+            f'''End of Epoch: {epoch + 1}  |  Train Loss: {train_loss:.3f}  |  Validation Loss: {valid_loss:.3f}  |  Train Acc: {train_acc * 100:.2f}%  |  Validation Acc: {valid_acc * 100:.2f}% ''')  
+
+# save train and validation loss for each epoch
+with open('train_loss.pkl', 'wb') as f:
+    pickle.dump(train_loss_list, f)
+with open('valid_loss.pkl', 'wb') as f:
+    pickle.dump(valid_loss_list, f)
+
 
     # %%
     sns.set_theme(style="whitegrid")
@@ -205,6 +217,9 @@ if __name__ == '__main__':
     # %%
     test_loss, test_acc, test_y_pred, test_y_true, test_y_pred_round = evaluate_model(model, test_iter, optimizer)
     test_y_pred_cat = torch.cat(test_y_pred)
+    # save predictions
+    with open('test_y_pred.pkl', 'wb') as f:
+        pickle.dump(test_y_pred_cat, f)
     test_y_true_cat = torch.cat(test_y_true)
     test_auc = get_auroc(test_y_true_cat, test_y_pred_cat)
     test_spear = spearman(test_y_true_cat,test_y_pred_cat)
